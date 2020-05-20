@@ -81,10 +81,10 @@ func scrape(id string, location string, language string) {
 
 			return nil
 		},
-		retry.Attempts(20),
+		retry.Attempts(5),
 	)
 	if err != nil {
-		log.Println(err)
+		//
 	}
 
 	value, err := parse(body)
