@@ -19,16 +19,31 @@ type row struct {
 }
 
 const (
-	start    = 133000
-	end      = 134000
 	location = "ru"
 	language = "ru"
 )
 
-var c chan row
-var filename string
+var (
+	err      error
+	c        chan row
+	filename string
+	start    int
+	end      int
+)
 
 func main() {
+	if len(os.Args) == 3 {
+		start, err = strconv.Atoi(os.Args[1])
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		end, err = strconv.Atoi(os.Args[2])
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	filename = fmt.Sprintf("result/%s-%s-%d-%d.csv", location, language, start, end)
 	c = make(chan row, 10)
 
@@ -38,10 +53,16 @@ func main() {
 	}
 
 	rows := make([]row, end-start)
-	for i, row := range rows {
-		row = <-c
-		save(i+1, row)
+	for i := 0; i < len(rows); i++ {
+		rows[i] = <-c
+		if rows[i].Value == "" {
+			log.Printf("#%d [MISS] %s", i+1, rows[i].ID)
+		} else {
+			log.Printf("#%d [HIT!] %s (%s)", i+1, rows[i].ID, rows[i].Value)
+		}
 	}
+
+	save(rows)
 
 	log.Printf("Done with %d rows.", len(rows))
 }
@@ -82,22 +103,17 @@ func parse(body []byte) (string, error) {
 	return strconv.Itoa(page.PageData.GenreID), nil
 }
 
-func save(n int, row row) {
+func save(rows []row) {
 	f, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		log.Fatalf("open file %q: %v", filename, err)
 	}
 	defer f.Close()
 
-	if row.Value == "" {
-		log.Printf("%d [MISS] %s", n, row.ID)
-		return
+	for _, row := range rows {
+		_, err = f.WriteString(fmt.Sprintf("%q,%q\n", row.ID, row.Value))
+		if err != nil {
+			log.Fatalf("write row %v: %v", row, err)
+		}
 	}
-
-	_, err = f.WriteString(fmt.Sprintf("%q,%q\n", row.ID, row.Value))
-	if err != nil {
-		log.Fatalf("write row %v: %v", row, err)
-	}
-
-	log.Printf("%d [HIT] %s (%s)", n, row.ID, row.Value)
 }
