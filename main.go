@@ -18,36 +18,38 @@ type row struct {
 	Value string
 }
 
-const (
-	location = "ru"
-	language = "ru"
-)
-
 var (
 	err      error
 	c        chan row
 	filename string
 	start    int
 	end      int
+	location = "ru"
+	language = "ru"
 )
 
 func main() {
-	if len(os.Args) == 3 {
+	if len(os.Args) == 5 {
 		start, err = strconv.Atoi(os.Args[1])
-		if err != nil {
-			log.Fatal(err)
-		}
-
 		end, err = strconv.Atoi(os.Args[2])
+		location = os.Args[3]
+		language = os.Args[4]
+
 		if err != nil {
 			log.Fatal(err)
 		}
+	} else {
+		log.Fatal("Wrong arguments count.\n" +
+			"Usage:\n" +
+			"\tcrawler <start-id> <end-id> <location> <language>")
 	}
 
-	filename = fmt.Sprintf("result/%s-%s-%d-%d.csv", location, language, start, end)
+	filename = fmt.Sprintf("result/%s-%s-%d-%d.csv", location, language,
+		start, end)
 	c = make(chan row, 10)
 
-	log.Printf("Start with %d rows.", end-start)
+	log.Printf("Start %s-%s with %d rows (%d-%d).", location, language,
+		end-start, start, end)
 	for i := start; i < end; i++ {
 		go scrape(strconv.Itoa(i), location, language)
 	}
@@ -79,10 +81,10 @@ func scrape(id string, location string, language string) {
 
 			return nil
 		},
-		retry.Attempts(25),
+		retry.Attempts(10),
 	)
 	if err != nil {
-		log.Printf("retry: %v", err)
+		log.Println(err)
 	}
 
 	value, err := parse(body)
