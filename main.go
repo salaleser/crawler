@@ -48,7 +48,7 @@ func main() {
 		start, end)
 	c = make(chan row, 10)
 
-	log.Printf("Start %s-%s with %d rows (%d-%d).", location, language,
+	log.Printf("Start %s/%s with %d rows (%d-%d).", location, language,
 		end-start, start, end)
 	for i := start; i < end; i++ {
 		go scrape(strconv.Itoa(i), location, language)
