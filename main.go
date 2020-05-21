@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 
 	"github.com/avast/retry-go"
 	"github.com/salaleser/scraper"
@@ -22,59 +20,77 @@ var (
 	err      error
 	c        chan row
 	filename string
-	start    int
-	end      int
-	location = "ru"
-	language = "ru"
+	location string
+	language string
 )
 
 func main() {
-	if len(os.Args) == 5 {
-		start, err = strconv.Atoi(os.Args[1])
-		end, err = strconv.Atoi(os.Args[2])
-		location = os.Args[3]
-		language = os.Args[4]
+	genreIDs := []int{
+		36, 6014,
+	}
 
-		if err != nil {
-			log.Fatal(err)
+	for _, genreID := range genreIDs {
+		filename = fmt.Sprintf("result/%d.csv", genreID)
+		c = make(chan row, 20)
+
+		locations := []string{
+			"us",
+			"br",
+			"no",
+			"vn",
+			"hu",
+			"tr",
+			"pt",
+			"id",
+			"fi",
+			"pl",
+			"ar",
+			"ie",
+			"at",
+			"se",
+			"ua",
+			"ru",
+			"es",
+			"au",
+			"gb",
+			"nl",
+			"ch",
+			"be",
+			"ca",
+			"co",
+			"cz",
+			"dk",
+			"it",
+			"nz",
+			"za",
+			"mx",
+			"fr",
+			"de",
 		}
-	} else {
-		log.Fatal("Wrong arguments count.\n" +
-			"Usage:\n" +
-			"\tcrawler <start-id> <end-id> <location> <language>")
-	}
 
-	filename = fmt.Sprintf("result/%s-%s-%d-%d.csv", location, language,
-		start, end)
-	c = make(chan row, 10)
-
-	log.Printf("Start %s/%s with %d rows (%d-%d).", location, language,
-		end-start, start, end)
-	for i := start; i < end; i++ {
-		go scrape(strconv.Itoa(i), location, language)
-	}
-
-	rows := make([]row, end-start)
-	for i := 0; i < len(rows); i++ {
-		rows[i] = <-c
-		if rows[i].Value == "" {
-			log.Printf("#%d [MISS] %s", i+1, rows[i].ID)
-		} else {
-			log.Printf("#%d [HIT!] %s (%s)", i+1, rows[i].ID, rows[i].Value)
+		log.Printf("Start %d.", genreID)
+		for _, location := range locations {
+			go scrape(genreID, location)
 		}
+
+		rows := make([]row, len(locations))
+		for i := 0; i < len(rows); i++ {
+			rows[i] = <-c
+			fmt.Printf("%d. %s: %s\n", i+1, rows[i].ID, rows[i].Value)
+		}
+
+		save(rows)
+
+		log.Printf("Done with %d rows.", len(rows))
 	}
-
-	save(rows)
-
-	log.Printf("Done with %d rows.", len(rows))
 }
 
-func scrape(id string, location string, language string) {
+func scrape(genreID int, location string) {
 	var err error
-	var body []byte
+	var page scraper.Page
 	err = retry.Do(
 		func() error {
-			body, err = scraper.AsGrouping(id, location, language)
+			page, err = scraper.AsGenre(genreID, location)
 			if err != nil {
 				return err
 			}
@@ -84,25 +100,10 @@ func scrape(id string, location string, language string) {
 		retry.Attempts(5),
 	)
 	if err != nil {
-		//
+		log.Println(genreID, location, err)
 	}
 
-	value, err := parse(body)
-	if err != nil {
-		c <- row{id, ""}
-	} else {
-		c <- row{id, value}
-	}
-}
-
-func parse(body []byte) (string, error) {
-	var page scraper.Page
-	err := json.Unmarshal(body, &page)
-	if err != nil {
-		return "", err
-	}
-
-	return strconv.Itoa(page.PageData.GenreID), nil
+	c <- row{location, page.PageData.MetricsBase.PageID}
 }
 
 func save(rows []row) {
